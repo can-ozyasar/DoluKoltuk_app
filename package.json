@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build && tsc -p tsconfig.worker.json --noEmit",
     "start": "next start",
-    "worker": "set -a && . ./.env.local && set +a && tsx src/worker/index.ts",
+    "worker": "if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; tsx src/worker/index.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "owner:create": "tsx prisma/create-owner.ts",

@@ -8,11 +8,12 @@ RUN apt-get update \
 
 COPY package*.json ./
 ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV CHROME_EXECUTABLE_PATH=/usr/bin/chromium
 RUN npm ci
 
 COPY . .
 RUN npx prisma generate && npm run build
 
-EXPOSE 3000
+EXPOSE 3100
 
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "worker"]

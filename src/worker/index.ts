@@ -46,7 +46,7 @@ const heartbeatIntervalMs = positiveInt(process.env.WORKER_HEARTBEAT_INTERVAL_MS
 const restartDelayMs = positiveInt(process.env.WORKER_RESTART_DELAY_MS, 15_000);
 const reminderMaxAttempts = positiveInt(process.env.REMINDER_MAX_ATTEMPTS, 10);
 const reminderBatchSize = positiveInt(process.env.REMINDER_BATCH_SIZE, 50);
-const healthPort = positiveInt(process.env.WORKER_HEALTH_PORT, 3100);
+const healthPort = positiveInt(process.env.PORT ?? process.env.WORKER_HEALTH_PORT, 3100);
 
 let shuttingDown = false;
 let lastTenantSyncAt: Date | null = null;

@@ -30,7 +30,7 @@ export default function HomePage() {
           </div>
         </div>
         <div style={{marginTop: '60px', padding: '0 20px'}}>
-          <img src="/images/hero-salon-dashboard.png" alt="DoluKoltuk Panel" style={{width: '100%', maxWidth: '900px', borderRadius: '20px', boxShadow: '0 24px 50px rgba(0,0,0,0.3)', border: '4px solid rgba(255,255,255,0.1)'}} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <img src="/images/hero-salon-dashboard.png" alt="DoluKoltuk Panel" style={{width: '100%', maxWidth: '900px', borderRadius: '20px', boxShadow: '0 24px 50px rgba(0,0,0,0.3)', border: '4px solid rgba(255,255,255,0.1)'}} />
         </div>
       </section>
 

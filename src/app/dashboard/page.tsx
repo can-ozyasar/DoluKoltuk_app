@@ -295,7 +295,7 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
 
                   {tenant.whatsappSession?.pairingCodePhone && !tenant.whatsappSession?.pairingCode && (
                     <>
-                      <meta httpEquiv="refresh" content="3" />
+                      <meta httpEquiv="refresh" content="3;url=/dashboard?tab=settings" />
                       <div className="status-pill warn" style={{width: '100%', justifyContent: 'center', padding: '12px'}}>
                         Kod oluşturuluyor... Lütfen bekleyin (Sayfa otomatik yenilenecek)
                       </div>
@@ -351,8 +351,23 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
             document.getElementById('tab-' + tab).classList.add('active');
             this.classList.add('active');
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            // Update URL without reloading
+            const url = new URL(window.location);
+            url.searchParams.set('tab', tab);
+            window.history.replaceState({}, '', url);
           });
         });
+
+        // Auto-select tab from URL on load
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+        if (activeTab) {
+          const targetBtn = document.querySelector('.bottom-nav .nav-item[data-tab="' + activeTab + '"]');
+          if (targetBtn) {
+            targetBtn.click();
+          }
+        }
 
         // Top Tabs (Days) Logic
         document.querySelectorAll('.top-tab').forEach(btn => {

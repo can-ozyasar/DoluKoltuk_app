@@ -335,19 +335,33 @@ async function checkPairingCodes() {
         console.log(`[${managed.slug}] Pairing code istenir: ${session.pairingCodePhone}`);
         // whatsapp-web.js requires phone number without '+'
         const cleanPhone = session.pairingCodePhone.replace(/\D/g, "");
-        const code = await managed.client.requestPairingCode(cleanPhone);
-        await updateSession(session.tenantId, {
-          pairingCode: code,
-          pairingCodePhone: null
-        });
-        console.log(`[${managed.slug}] Pairing code generated: ${code}`);
-      } catch (error) {
-        console.error(`[${managed.slug}] requestPairingCode error`, error);
-        await updateSession(session.tenantId, {
-          pairingCodePhone: null,
-          lastError: "Kod alinamadi: " + (error instanceof Error ? error.message : "Bilinmeyen hata")
-        });
-      }
+        let code: string | null = null;
+        let attempt = 0;
+        while (attempt < 3 && !code) {
+          try {
+            code = await managed.client.requestPairingCode(cleanPhone);
+          } catch (e) {
+            attempt++;
+            console.error(`[${managed.slug}] requestPairingCode attempt ${attempt} failed:`, e);
+            if (attempt >= 3) {
+              await updateSession(session.tenantId, {
+                pairingCodePhone: null,
+                lastError: "Kod alinamadi: " + (e instanceof Error ? e.message : "Bilinmeyen hata")
+              });
+              break;
+            }
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+        
+        if (code) {
+          await updateSession(session.tenantId, {
+            pairingCode: code,
+            pairingCodePhone: null,
+            lastError: null
+          });
+          console.log(`[${managed.slug}] Pairing code generated: ${code}`);
+        }
     }
   }
 }

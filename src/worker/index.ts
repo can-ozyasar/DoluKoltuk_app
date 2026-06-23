@@ -30,6 +30,8 @@ type SessionPatch = {
   status?: WhatsAppStatus;
   qrCode?: string | null;
   qrDataUrl?: string | null;
+  pairingCodePhone?: string | null;
+  pairingCode?: string | null;
   connectedPhone?: string | null;
   lastSeenAt?: Date | null;
   lastError?: string | null;
@@ -205,6 +207,8 @@ async function startClient(tenant: TenantRef) {
       status: WhatsAppStatus.CONNECTED,
       qrCode: null,
       qrDataUrl: null,
+      pairingCode: null,
+      pairingCodePhone: null,
       connectedPhone: client.info?.wid?._serialized ?? null,
       lastError: null,
       lastSeenAt: new Date()
@@ -315,6 +319,38 @@ async function sendText(tenantId: string, to: string, body: string) {
   await managed.client.sendMessage(to, body);
 }
 
+async function checkPairingCodes() {
+  const sessions = await prisma.whatsAppSession.findMany({
+    where: {
+      pairingCodePhone: { not: null },
+      status: WhatsAppStatus.QR_READY
+    }
+  });
+
+  for (const session of sessions) {
+    const managed = clients.get(session.tenantId);
+    if (managed && managed.client && session.pairingCodePhone) {
+      try {
+        console.log(`[${managed.slug}] Pairing code istenir: ${session.pairingCodePhone}`);
+        // whatsapp-web.js requires phone number without '+'
+        const cleanPhone = session.pairingCodePhone.replace(/\D/g, "");
+        const code = await managed.client.requestPairingCode(cleanPhone);
+        await updateSession(session.tenantId, {
+          pairingCode: code,
+          pairingCodePhone: null
+        });
+        console.log(`[${managed.slug}] Pairing code generated: ${code}`);
+      } catch (error) {
+        console.error(`[${managed.slug}] requestPairingCode error`, error);
+        await updateSession(session.tenantId, {
+          pairingCodePhone: null,
+          lastError: "Kod alinamadi: " + (error instanceof Error ? error.message : "Bilinmeyen hata")
+        });
+      }
+    }
+  }
+}
+
 function startHealthServer() {
   const server = http.createServer(async (request, response) => {
     if (request.url === "/healthz" || request.url === "/readyz") {
@@ -373,11 +409,16 @@ async function main() {
     }).catch((error) => console.error("Reminder error", error));
   });
 
+  const pairingTimer = setInterval(() => {
+    checkPairingCodes().catch((error) => console.error("Pairing code check error", error));
+  }, 5000);
+
   async function shutdown() {
     shuttingDown = true;
     console.log("Worker kapatiliyor...");
     clearInterval(syncTimer);
     clearInterval(heartbeatTimer);
+    clearInterval(pairingTimer);
     healthServer.close();
     for (const tenantId of Array.from(clients.keys())) {
       await stopClient(tenantId, "Worker kapatildi");

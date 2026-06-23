@@ -93,6 +93,8 @@ model WhatsAppSession {
   status         WhatsAppStatus @default(DISCONNECTED)
   qrCode         String?
   qrDataUrl      String?
+  pairingCodePhone String?
+  pairingCode    String?
   connectedPhone String?
   lastSeenAt     DateTime?
   lastError      String?

@@ -255,3 +255,24 @@ export async function createCustomerNoteAction(formData: FormData) {
 
   revalidatePath("/dashboard");
 }
+
+export async function requestPairingCodeAction(formData: FormData) {
+  const user = await requireUser([UserRole.TENANT_ADMIN]);
+  const tenantId = requireTenantId(user);
+  const phone = field(formData, "pairingPhone");
+
+  if (!phone) {
+    redirect("/dashboard?error=Telefon+numarasi+gerekli");
+  }
+
+  await prisma.whatsAppSession.updateMany({
+    where: { tenantId },
+    data: {
+      pairingCodePhone: phone,
+      pairingCode: null,
+      lastError: null
+    }
+  });
+
+  revalidatePath("/dashboard");
+}

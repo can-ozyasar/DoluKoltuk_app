@@ -362,6 +362,9 @@ async function checkPairingCodes() {
           });
           console.log(`[${managed.slug}] Pairing code generated: ${code}`);
         }
+      } catch (err) {
+        console.error(`[${managed.slug}] Critical error in checkPairingCodes`, err);
+      }
     }
   }
 }

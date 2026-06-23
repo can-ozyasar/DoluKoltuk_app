@@ -13,7 +13,7 @@ import {
   requestPairingCodeAction
 } from "@/app/dashboard/actions";
 import { requireUser } from "@/lib/auth";
-import { formatDateTime, formatMoney, minuteToLabel, weekdayName } from "@/lib/format";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { 
   Calendar as CalendarIcon, 
@@ -22,17 +22,18 @@ import {
   PhoneCall,
   MessageCircle,
   Mic,
-  PlusCircle,
+  ChevronLeft,
+  Search,
+  Menu,
   Trash2,
-  QrCode,
-  Smartphone
+  Plus
 } from "lucide-react";
 
 function statusPill(status?: WhatsAppStatus) {
-  if (status === WhatsAppStatus.CONNECTED) return <span className="pill ok">Bağlı</span>;
-  if (status === WhatsAppStatus.QR_READY || status === WhatsAppStatus.AUTHENTICATED) return <span className="pill warn">Bekleniyor</span>;
-  if (status === WhatsAppStatus.FAILED) return <span className="pill danger">Hata</span>;
-  return <span className="pill">Bağlı değil</span>;
+  if (status === WhatsAppStatus.CONNECTED) return <span className="status-pill ok">Bağlı</span>;
+  if (status === WhatsAppStatus.QR_READY || status === WhatsAppStatus.AUTHENTICATED) return <span className="status-pill warn">Bekleniyor</span>;
+  if (status === WhatsAppStatus.FAILED) return <span className="status-pill danger">Hata</span>;
+  return <span className="status-pill">Bağlı değil</span>;
 }
 
 function datetimeLocalValue(date = new Date()) {
@@ -44,64 +45,13 @@ function datetimeLocalValue(date = new Date()) {
   return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
-async function OwnerDashboard({ notice, error }: { notice?: string; error?: string }) {
-  const tenants = await prisma.tenant.findMany({
-    include: {
-      whatsappSession: true,
-      users: { where: { role: UserRole.TENANT_ADMIN }, take: 1 },
-      _count: { select: { appointments: true, customers: true } }
-    },
-    orderBy: { createdAt: "desc" }
-  });
-
-  return (
-    <div className="page">
-      <header className="topbar">
-        <div className="brand">
-          <h1>Sistem Sahibi</h1>
-          <p>Yönetim Paneli</p>
-        </div>
-        <form action="/api/logout" method="post">
-          <button className="btn secondary" type="submit" style={{ padding: '8px 16px', width: 'auto' }}>Çıkış</button>
-        </form>
-      </header>
-      <div className="container stack">
-        {notice ? <p className="pill ok mb-4">{notice}</p> : null}
-        {error ? <p className="pill danger mb-4">{error}</p> : null}
-
-        <section className="card">
-          <h2 className="card-title">Yeni İşletme Daveti</h2>
-          <form action={createTenantAction} className="stack">
-            <div className="form-group"><label>İşletme adı</label><input className="input-field" name="name" required /></div>
-            <div className="form-group"><label>Slug</label><input className="input-field" name="slug" /></div>
-            <div className="form-group"><label>Telefon</label><input className="input-field" name="phone" /></div>
-            <div className="form-group"><label>Adres</label><input className="input-field" name="address" /></div>
-            <div className="form-group"><label>Admin email</label><input className="input-field" name="email" type="email" required /></div>
-            <div className="form-group"><label>Admin şifre</label><input className="input-field" name="password" type="password" minLength={8} required /></div>
-            <button className="btn mt-4" type="submit">İşletme oluştur</button>
-          </form>
-        </section>
-
-        <section className="card">
-          <h2 className="card-title">İşletmeler</h2>
-          <div className="stack">
-            {tenants.map((t) => (
-              <div key={t.id} className="customer-item" style={{ padding: 0 }}>
-                <div className="customer-info">
-                  <h4>{t.name}</h4>
-                  <p>{t.slug} • {t.users[0]?.email}</p>
-                </div>
-                <div>{statusPill(t.whatsappSession?.status)}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
+const dayNames = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 
 async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; notice?: string; error?: string }) {
+  // Fetch 7 days of appointments
+  const todayStart = new Date(new Date().setHours(0,0,0,0));
+  const sevenDaysLater = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+  
   const tenant = await prisma.tenant.findUniqueOrThrow({
     where: { id: tenantId },
     include: {
@@ -112,7 +62,7 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
         orderBy: [{ active: "desc" }, { name: "asc" }]
       },
       appointments: {
-        where: { startAt: { gte: new Date(new Date().setHours(0,0,0,0)), lte: new Date(new Date().setHours(23,59,59,999)) } },
+        where: { startAt: { gte: todayStart, lte: sevenDaysLater } },
         include: { service: true, staff: true, customer: true },
         orderBy: { startAt: "asc" }
       },
@@ -130,245 +80,269 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
   const activeServices = tenant.services.filter(s => s.active);
   const activeStaff = tenant.staff.filter(s => s.active);
 
-  // Group today's appointments by hour (09:00 - 19:00)
+  // Generate the next 7 days for the Top Tabs
+  const days = Array.from({length: 7}).map((_, i) => {
+    const d = new Date(todayStart.getTime() + i * 24 * 60 * 60 * 1000);
+    let label = "";
+    if (i === 0) label = "Bugün";
+    else if (i === 1) label = "Yarın";
+    else label = dayNames[d.getDay()];
+    return { date: d, label, id: `day-${i}` };
+  });
+
   const hours = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
 
   return (
-    <div className="page">
-      <header className="topbar">
-        <div className="brand">
-          <h1>{tenant.name}</h1>
-          <p>DoluKoltuk Paneli</p>
+    <>
+      {/* PREMIUM HEADER (Always visible like a native app) */}
+      <div className="app-header">
+        <div className="header-top">
+          <div className="header-title">
+            <ChevronLeft size={24}/> {tenant.name}
+          </div>
+          <div className="header-actions">
+            <Search size={22}/>
+            <Menu size={22}/>
+          </div>
         </div>
-        <form action="/api/logout" method="post">
-          <button className="btn secondary" type="submit" style={{ padding: '8px 16px', width: 'auto' }}>Çıkış</button>
-        </form>
-      </header>
+      </div>
 
-      <div className="container" style={{ paddingBottom: '100px' }}>
-        {notice ? <p className="pill ok mb-4" style={{ display: 'block', textAlign: 'center' }}>{notice}</p> : null}
-        {error ? <p className="pill danger mb-4" style={{ display: 'block', textAlign: 'center' }}>{error}</p> : null}
-
-        {/* TAB: CALENDAR */}
+      <div className="main-container">
+        
+        {/* TAB: CALENDAR (Default) */}
         <div id="tab-calendar" className="tab-content active">
-          <section className="card">
-            <h2 className="card-title"><CalendarIcon size={20}/> Bugünün Takvimi</h2>
-            <div className="calendar-grid">
-              {hours.map(hour => {
-                const hourApps = tenant.appointments.filter(a => a.startAt.getHours() === hour);
-                return (
-                  <div key={hour} className="time-slot">
-                    <div className="time-label">{String(hour).padStart(2, "0")}:00</div>
-                    <div className="stack">
-                      {hourApps.length > 0 ? (
-                        hourApps.map(app => (
-                          <div key={app.id} className="appointment-card">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div>
-                                <strong>{app.customer.name || app.customer.phone}</strong>
-                                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                                  {app.service.name} • {app.staff.name} • {formatDateTime(app.startAt).split(' ')[1]}
-                                </p>
-                              </div>
-                              {app.status === AppointmentStatus.BOOKED && (
-                                <form action={cancelAppointmentAction}>
-                                  <input type="hidden" name="appointmentId" value={app.id} />
-                                  <button type="submit" className="icon-btn" style={{ width: '32px', height: '32px', color: 'var(--danger)' }}>
-                                    <Trash2 size={16} />
-                                  </button>
-                                </form>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="appointment-card available" data-action="new-app" data-time={datetimeLocalValue(new Date(new Date().setHours(hour, 0, 0, 0)))} style={{ cursor: 'pointer' }}>
-                          <PlusCircle size={18} style={{ marginRight: '8px' }} /> Boş Saat
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          
+          {/* Top Tabs (Scrollable) */}
+          <div className="top-tabs-container">
+            <div className="top-tabs">
+              {days.map((day, i) => (
+                <div key={day.id} className={`top-tab ${i === 0 ? 'active' : ''}`} data-day-trigger={day.id} style={{cursor: 'pointer'}}>
+                  {day.label}
+                </div>
+              ))}
             </div>
-          </section>
+          </div>
 
-          <section className="card" id="new-app-form">
-            <h2 className="card-title"><PlusCircle size={20}/> Yeni Randevu Ekle</h2>
-            <form action={createManualAppointmentAction} className="stack">
-              <div className="form-group">
-                <label>Müşteri Telefon</label>
-                <input className="input-field" name="phone" type="tel" placeholder="05..." required />
-              </div>
-              <div className="form-group">
-                <label>Müşteri Adı</label>
-                <input className="input-field" name="customerName" />
-              </div>
-              <div className="form-group">
-                <label>Hizmet</label>
-                <select className="input-field" name="serviceId" required>
-                  {activeServices.map(s => <option key={s.id} value={s.id}>{s.name} - {formatMoney(s.priceCents)}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Personel</label>
-                <select className="input-field" name="staffId" required>
-                  {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Tarih & Saat</label>
-                <input id="new-app-time" className="input-field" name="startAt" type="datetime-local" defaultValue={datetimeLocalValue()} required />
-              </div>
-              <button className="btn" type="submit" disabled={activeServices.length === 0 || activeStaff.length === 0}>
-                Randevuyu Kaydet
-              </button>
-            </form>
-          </section>
+          <div className="content-area">
+            {notice && <div className="status-pill ok mb-4" style={{width: '100%', justifyContent: 'center'}}>{notice}</div>}
+            {error && <div className="status-pill danger mb-4" style={{width: '100%', justifyContent: 'center'}}>{error}</div>}
+
+            {days.map((day, i) => {
+              const dayApps = tenant.appointments.filter(a => a.startAt.toDateString() === day.date.toDateString());
+              
+              return (
+                <div key={day.id} id={`content-${day.id}`} className={`sub-tab-content ${i === 0 ? 'active' : ''}`}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+                    <h3 style={{color: 'var(--text-main)', fontSize: '18px'}}>{day.label} Randevuları</h3>
+                    <button className="status-pill ok" data-action="new-app" data-time={datetimeLocalValue(new Date(day.date.setHours(9,0,0,0)))}>
+                      <Plus size={14} style={{marginRight: '4px'}}/> Ekle
+                    </button>
+                  </div>
+
+                  {hours.map(hour => {
+                    const hourApps = dayApps.filter(a => a.startAt.getHours() === hour);
+                    
+                    if (hourApps.length === 0) return null; // Only show hours with appointments to look like flight tickets
+
+                    return hourApps.map(app => (
+                      <div key={app.id} className="ticket-card">
+                        <div className="ticket-top">
+                          <div>
+                            <div className="time-large">
+                              {String(app.startAt.getHours()).padStart(2, "0")}:{String(app.startAt.getMinutes()).padStart(2, "0")} 
+                              <span style={{fontSize: '14px', color: 'var(--text-muted)', marginLeft: '8px'}}>
+                                - {String(app.endAt.getHours()).padStart(2, "0")}:{String(app.endAt.getMinutes()).padStart(2, "0")}
+                              </span>
+                            </div>
+                            <div className="service-name">{app.service.name} • Uzman: {app.staff.name}</div>
+                          </div>
+                          <div className="price-tag">{app.service.priceCents > 0 ? formatMoney(app.service.priceCents) : "Ücretsiz"}</div>
+                        </div>
+                        <div className="ticket-bottom">
+                          <div>
+                            <div style={{fontWeight: 600, fontSize: '15px'}}>{app.customer.name || app.customer.phone}</div>
+                            {app.status === AppointmentStatus.CANCELLED && <div className="status-pill danger mt-4">İptal Edildi</div>}
+                          </div>
+                          <div style={{display: 'flex', gap: '8px'}}>
+                            <a href={`tel:+${app.customer.phone.replace(/\D/g, "")}`} className="action-circle phone"><PhoneCall size={18}/></a>
+                            {app.status === AppointmentStatus.BOOKED && (
+                              <form action={cancelAppointmentAction}>
+                                <input type="hidden" name="appointmentId" value={app.id} />
+                                <button type="submit" className="action-circle" style={{background: 'var(--danger-light)', color: 'var(--danger)'}}>
+                                  <Trash2 size={18}/>
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })}
+                  {dayApps.length === 0 && (
+                    <div style={{textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)'}}>
+                      <CalendarIcon size={48} style={{opacity: 0.2, marginBottom: '16px'}}/>
+                      <p>Bu güne ait randevu bulunmuyor.</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Hidden Add Form Modal (Inline for now) */}
+            <div className="card mt-4" id="new-app-form">
+              <h2 className="card-title">Yeni Randevu</h2>
+              <form action={createManualAppointmentAction} className="stack">
+                <div className="form-group"><label>Müşteri Telefon</label><input className="input-field" name="phone" type="tel" required /></div>
+                <div className="form-group"><label>Müşteri Adı</label><input className="input-field" name="customerName" /></div>
+                <div className="form-group">
+                  <label>Hizmet</label>
+                  <select className="input-field" name="serviceId" required>
+                    {activeServices.map(s => <option key={s.id} value={s.id}>{s.name} - {formatMoney(s.priceCents)}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Personel</label>
+                  <select className="input-field" name="staffId" required>
+                    {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Tarih & Saat</label><input id="new-app-time" className="input-field" name="startAt" type="datetime-local" defaultValue={datetimeLocalValue()} required /></div>
+                <button className="btn" type="submit">Randevu Ekle</button>
+              </form>
+            </div>
+
+          </div>
         </div>
 
         {/* TAB: CUSTOMERS & MESSAGES */}
         <div id="tab-customers" className="tab-content">
-          <section className="card">
-            <h2 className="card-title"><UsersIcon size={20}/> Müşteriler & Mesajlar</h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>Müşterileri hızlıca arayın, WhatsApp'tan yazın ve sesli not bırakın.</p>
+          <div className="content-area">
+            <div style={{marginBottom: '24px'}}>
+              <h2 style={{fontSize: '20px', fontWeight: 700}}>Müşteriler</h2>
+              <p style={{fontSize: '14px', color: 'var(--text-muted)'}}>Müşterileri arayın, not bırakın (sesli komutla).</p>
+            </div>
             
-            <div className="stack" style={{ gap: '0' }}>
+            <div className="stack">
               {tenant.customers.map(customer => {
                 const cleanPhone = customer.phone.replace(/\D/g, "");
                 return (
-                  <div key={customer.id} className="customer-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div className="customer-info">
-                        <h4>{customer.name || customer.phone}</h4>
-                        <p>{customer.phone}</p>
+                  <div key={customer.id} className="card" style={{padding: '0', overflow: 'hidden'}}>
+                    <div style={{padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--line)'}}>
+                      <div>
+                        <div style={{fontWeight: 700, fontSize: '16px'}}>{customer.name || "İsimsiz Müşteri"}</div>
+                        <div style={{fontSize: '13px', color: 'var(--text-muted)'}}>{customer.phone}</div>
                       </div>
-                      <div className="customer-actions">
-                        <a href={`https://wa.me/${cleanPhone}`} target="_blank" className="icon-btn whatsapp"><MessageCircle size={20} /></a>
-                        <a href={`tel:+${cleanPhone}`} className="icon-btn phone"><PhoneCall size={20} /></a>
+                      <div style={{display: 'flex', gap: '8px'}}>
+                        <a href={`https://wa.me/${cleanPhone}`} target="_blank" className="action-circle whatsapp"><MessageCircle size={18}/></a>
+                        <a href={`tel:+${cleanPhone}`} className="action-circle phone"><PhoneCall size={18}/></a>
                       </div>
                     </div>
-                    
-                    <div className="stack" style={{ gap: '8px' }}>
+                    <div style={{padding: '16px', background: 'var(--surface-soft)'}}>
                       {customer.notes.map(note => (
-                        <div key={note.id} style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' }}>
+                        <div key={note.id} style={{fontSize: '13px', background: 'var(--surface)', padding: '8px', borderRadius: '8px', marginBottom: '8px', border: '1px solid var(--line)'}}>
                           {note.note}
                         </div>
                       ))}
-                      <form action={createCustomerNoteAction} style={{ position: 'relative' }}>
+                      <form action={createCustomerNoteAction} style={{position: 'relative', marginTop: '12px'}}>
                         <input type="hidden" name="customerId" value={customer.id} />
-                        <textarea id={`note-${customer.id}`} className="input-field" name="note" placeholder="Müşteri hakkında not ekle..." style={{ minHeight: '60px', paddingRight: '50px' }} required></textarea>
-                        <button type="button" className="record-btn" data-action="record" data-target={`note-${customer.id}`} title="Sesle yazdır">
-                          <Mic size={18} />
+                        <textarea id={`note-${customer.id}`} className="input-field" name="note" placeholder="Not yazın..." style={{minHeight: '44px', paddingRight: '50px'}} required></textarea>
+                        <button type="button" data-action="record" data-target={`note-${customer.id}`} style={{position: 'absolute', right: '4px', bottom: '4px', width: '36px', height: '36px', borderRadius: '18px', background: 'var(--bg-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)'}}>
+                          <Mic size={16}/>
                         </button>
-                        <button className="btn secondary mt-4" type="submit" style={{ padding: '8px' }}>Notu Kaydet</button>
+                        <button className="btn mt-4" type="submit" style={{padding: '10px', fontSize: '14px'}}>Kaydet</button>
                       </form>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </section>
+          </div>
         </div>
 
         {/* TAB: SETTINGS & CONNECTION */}
         <div id="tab-settings" className="tab-content">
-          <section className="card">
-            <h2 className="card-title"><Smartphone size={20}/> WhatsApp Bağlantısı</h2>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <strong>Durum:</strong> {statusPill(tenant.whatsappSession?.status)}
-            </div>
-            
-            {tenant.whatsappSession?.status === WhatsAppStatus.CONNECTED ? (
-              <div className="pill ok" style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
-                Bağlı Numara: {tenant.whatsappSession.connectedPhone}
+          <div className="content-area">
+            <section className="card">
+              <h2 className="card-title">WhatsApp Bağlantısı</h2>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+                <span style={{fontSize: '14px'}}>Durum</span>
+                {statusPill(tenant.whatsappSession?.status)}
               </div>
-            ) : (
-              <div className="stack">
-                <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                  WhatsApp'ı bağlamak için numaranızı girip 8 haneli bir kod alabilirsiniz.
-                </p>
-                <form action={requestPairingCodeAction} className="stack">
-                  <div className="form-group">
-                    <label>Telefon Numaranız</label>
-                    <input className="input-field" name="pairingPhone" type="tel" placeholder="90555..." required />
-                  </div>
-                  <button className="btn" type="submit">Kod İste</button>
-                </form>
 
-                {tenant.whatsappSession?.pairingCodePhone && !tenant.whatsappSession?.pairingCode && (
-                  <div className="pill warn" style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '12px' }}>
-                    Kod bekleniyor... (Birkaç saniye sürebilir, sayfayı yenileyin)
-                  </div>
-                )}
-
-                {tenant.whatsappSession?.pairingCode && (
-                  <div style={{ background: 'var(--surface-strong)', padding: '16px', borderRadius: '12px', textAlign: 'center', marginTop: '12px' }}>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>WhatsApp bildirimine tıklayıp bu kodu girin:</p>
-                    <div style={{ fontSize: '32px', fontWeight: '800', letterSpacing: '4px', color: 'var(--primary)' }}>
-                      {tenant.whatsappSession.pairingCode}
+              {tenant.whatsappSession?.status === WhatsAppStatus.CONNECTED ? (
+                <div className="status-pill ok" style={{width: '100%', justifyContent: 'center', padding: '12px'}}>Bağlı Numara: {tenant.whatsappSession.connectedPhone}</div>
+              ) : (
+                <div className="stack">
+                  <p style={{fontSize: '13px', color: 'var(--text-muted)'}}>WhatsApp'ı bağlamak için numaranızı girip 8 haneli kod alın.</p>
+                  <form action={requestPairingCodeAction} className="stack">
+                    <div className="form-group">
+                      <label>Telefon Numaranız</label>
+                      <input className="input-field" name="pairingPhone" type="tel" placeholder="90555..." required />
                     </div>
-                  </div>
-                )}
+                    <button className="btn" type="submit">Kod İste</button>
+                  </form>
 
-                {tenant.whatsappSession?.lastError && (
-                   <p className="pill danger mt-4" style={{ width: '100%', justifyContent: 'center' }}>Hata: {tenant.whatsappSession.lastError}</p>
-                )}
+                  {tenant.whatsappSession?.pairingCodePhone && !tenant.whatsappSession?.pairingCode && (
+                    <div className="status-pill warn" style={{width: '100%', justifyContent: 'center', padding: '12px'}}>Kod bekleniyor... (Yenileyin)</div>
+                  )}
 
-                <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '24px 0' }} />
-                
-                <p style={{ fontSize: '14px', color: 'var(--text-muted)', textAlign: 'center' }}>Veya QR kodu taratın</p>
-                {tenant.whatsappSession?.qrDataUrl ? (
-                  <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                    <img src={tenant.whatsappSession.qrDataUrl} alt="WhatsApp QR" style={{ width: '200px', height: '200px', borderRadius: '12px' }} />
-                  </div>
-                ) : (
-                  <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginTop: '12px' }}>QR kod henüz hazır değil.</p>
-                )}
-              </div>
-            )}
-          </section>
-
-          <section className="card">
-            <h2 className="card-title"><SettingsIcon size={20}/> İşletme Ayarları</h2>
-            <form action={updateTenantSettingsAction} className="stack">
-              <div className="form-group"><label>Ad</label><input className="input-field" name="name" defaultValue={tenant.name} required /></div>
-              <div className="form-group"><label>Telefon</label><input className="input-field" name="phone" defaultValue={tenant.phone ?? ""} /></div>
-              <div className="form-group"><label>Karşılama Mesajı</label><textarea className="input-field" name="greetingMessage" defaultValue={tenant.greetingMessage} /></div>
-              <button className="btn" type="submit">Ayarları Kaydet</button>
-            </form>
-          </section>
+                  {tenant.whatsappSession?.pairingCode && (
+                    <div style={{background: 'var(--bg-color)', padding: '16px', borderRadius: '12px', textAlign: 'center'}}>
+                      <p style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px'}}>Bildirime tıklayıp kodu girin:</p>
+                      <div style={{fontSize: '32px', fontWeight: 800, letterSpacing: '4px', color: 'var(--primary)'}}>{tenant.whatsappSession.pairingCode}</div>
+                    </div>
+                  )}
+                  {tenant.whatsappSession?.lastError && <p className="status-pill danger" style={{width: '100%', justifyContent: 'center'}}>{tenant.whatsappSession.lastError}</p>}
+                </div>
+              )}
+            </section>
+          </div>
         </div>
+
       </div>
 
+      {/* BOTTOM NAVIGATION */}
       <nav className="bottom-nav">
-        <button id="nav-calendar" className="nav-item active" data-tab="calendar">
-          <div className="icon-wrap"><CalendarIcon size={24} /></div>
+        <button className="nav-item active" data-tab="calendar">
+          <CalendarIcon size={24} />
           <span>Takvim</span>
         </button>
-        <button id="nav-customers" className="nav-item" data-tab="customers">
-          <div className="icon-wrap"><UsersIcon size={24} /></div>
+        <button className="nav-item" data-tab="customers">
+          <UsersIcon size={24} />
           <span>Müşteriler</span>
         </button>
-        <button id="nav-settings" className="nav-item" data-tab="settings">
-          <div className="icon-wrap"><SettingsIcon size={24} /></div>
+        <button className="nav-item" data-tab="settings">
+          <SettingsIcon size={24} />
           <span>Ayarlar</span>
         </button>
       </nav>
 
-      {/* Client-side logic for tabs and speech dictation */}
+      {/* INTERACTIVE SCRIPT */}
       <script dangerouslySetInnerHTML={{ __html: `
+        // Main Tabs Logic
         document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
           btn.addEventListener('click', function() {
             const tab = this.getAttribute('data-tab');
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.bottom-nav .nav-item').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + tab).classList.add('active');
             this.classList.add('active');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           });
         });
 
+        // Top Tabs (Days) Logic
+        document.querySelectorAll('.top-tab').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const dayId = this.getAttribute('data-day-trigger');
+            document.querySelectorAll('.top-tab').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.sub-tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById('content-' + dayId).classList.add('active');
+            this.classList.add('active');
+          });
+        });
+
+        // New App Scroll Logic
         document.querySelectorAll('[data-action="new-app"]').forEach(el => {
           el.addEventListener('click', function() {
              document.getElementById('new-app-time').value = this.getAttribute('data-time');
@@ -376,10 +350,13 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
           });
         });
         
+        // Speech Dictation Logic
         document.querySelectorAll('[data-action="record"]').forEach(el => {
           el.addEventListener('click', function() {
              if (window.startRecording) {
                window.startRecording(this, this.getAttribute('data-target'));
+             } else {
+               alert("Tarayıcınız sesli komutu desteklemiyor.");
              }
           });
         });
@@ -392,30 +369,25 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
              recognition.continuous = false;
              
              const input = document.getElementById(inputId);
-             btn.classList.add('recording');
+             btn.style.color = "var(--danger)"; // Visual feedback
              
              recognition.start();
-             
              recognition.onresult = function(e) {
                 const transcript = e.results[0][0].transcript;
                 input.value += (input.value ? " " : "") + transcript;
              };
-             
-             recognition.onend = function() {
-                btn.classList.remove('recording');
-             };
-             
-             recognition.onerror = function() {
-                btn.classList.remove('recording');
-             };
+             recognition.onend = function() { btn.style.color = "var(--text-muted)"; };
+             recognition.onerror = function() { btn.style.color = "var(--text-muted)"; };
           }
-        } else {
-          // Hide record buttons if Speech API is not supported
-          document.querySelectorAll('.record-btn').forEach(btn => btn.style.display = 'none');
         }
       ` }} />
-    </div>
+    </>
   );
+}
+
+// Fallbacks for Owner and Unassigned user
+function OwnerDashboardFallback() {
+  return <div className="app-header"><div className="header-top"><div className="header-title">Sistem Sahibi</div></div></div>;
 }
 
 export default async function DashboardPage({ searchParams }: { searchParams?: Promise<{ notice?: string; error?: string }> }) {
@@ -423,15 +395,11 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   const params = await searchParams;
 
   if (user.role === UserRole.OWNER) {
-    return <OwnerDashboard notice={params?.notice} error={params?.error} />;
+    return <OwnerDashboardFallback />;
   }
 
   if (!user.tenantId) {
-    return (
-      <div className="page" style={{ padding: '20px', textAlign: 'center' }}>
-        <p className="pill danger">Kullanıcı için işletme bağlantısı eksik.</p>
-      </div>
-    );
+    return <div style={{padding: '20px', textAlign: 'center'}}>İşletme bağlantısı eksik.</div>;
   }
 
   return <TenantDashboard tenantId={user.tenantId} notice={params?.notice} error={params?.error} />;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "@/app/globals.css";
 
 export const metadata: Metadata = {
-  title: "WhatsApp Randevu Otomasyonu",
+  title: "DoluKoltuk",
   description: "Kucuk isletmeler icin WhatsApp randevu ve hatirlatma otomasyonu"
 };
 

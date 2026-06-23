@@ -76,10 +76,15 @@ export async function getCurrentUser() {
     return null;
   }
 
-  return prisma.user.findUnique({
-    where: { id: payload.userId },
-    include: { tenant: true }
-  });
+  return prisma.user
+    .findUnique({
+      where: { id: payload.userId },
+      include: { tenant: true }
+    })
+    .catch((error) => {
+      console.error("Session database error", error);
+      return null;
+    });
 }
 
 export async function requireUser(roles?: UserRole[]) {

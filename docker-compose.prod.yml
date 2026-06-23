@@ -1,0 +1,95 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-whatsapp_randevu}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-whatsapp_randevu}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: sh -c "npx prisma db push && npm run owner:create && npm run start"
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-whatsapp_randevu}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET}
+      APP_URL: ${APP_URL}
+      TZ: ${TZ:-Europe/Istanbul}
+      OWNER_EMAIL: ${OWNER_EMAIL}
+      OWNER_PASSWORD: ${OWNER_PASSWORD}
+    expose:
+      - "3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: npm run worker
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-whatsapp_randevu}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET}
+      TZ: ${TZ:-Europe/Istanbul}
+      CHROME_EXECUTABLE_PATH: /usr/bin/chromium
+      WHATSAPP_SESSION_DIR: /app/.wwebjs_auth
+      WORKER_ID: ${WORKER_ID:-prod-worker-1}
+      WORKER_HEALTH_PORT: "3100"
+      WORKER_SHARD_COUNT: ${WORKER_SHARD_COUNT:-1}
+      WORKER_SHARD_INDEX: ${WORKER_SHARD_INDEX:-0}
+      WORKER_MAX_TENANTS: ${WORKER_MAX_TENANTS:-25}
+      WORKER_SYNC_INTERVAL_MS: ${WORKER_SYNC_INTERVAL_MS:-30000}
+      WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-30000}
+      WORKER_RESTART_DELAY_MS: ${WORKER_RESTART_DELAY_MS:-15000}
+      REMINDER_MAX_ATTEMPTS: ${REMINDER_MAX_ATTEMPTS:-10}
+      REMINDER_BATCH_SIZE: ${REMINDER_BATCH_SIZE:-50}
+    volumes:
+      - whatsapp-sessions:/app/.wwebjs_auth
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3100/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+
+volumes:
+  postgres-data:
+  whatsapp-sessions:
+  caddy-data:
+  caddy-config:

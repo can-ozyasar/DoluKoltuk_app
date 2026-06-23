@@ -39,6 +39,7 @@ enum ReminderKind {
 
 enum ReminderStatus {
   PENDING
+  PROCESSING
   SENT
   SKIPPED
   FAILED
@@ -211,6 +212,9 @@ model Reminder {
   dueAt         DateTime
   sentAt        DateTime?
   status        ReminderStatus @default(PENDING)
+  lockedAt      DateTime?
+  lockedBy      String?
+  attemptCount  Int            @default(0)
   lastError     String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -219,6 +223,7 @@ model Reminder {
 
   @@unique([appointmentId, kind])
   @@index([status, dueAt])
+  @@index([lockedBy, lockedAt])
 }
 
 model ConversationState {

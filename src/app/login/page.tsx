@@ -12,18 +12,25 @@ export default async function LoginPage({
   }
 
   const params = await searchParams;
+  const errorMessage =
+    params?.error === "db"
+      ? "Canli panel veritabani henuz bagli degil. DATABASE_URL eklendikten sonra giris yapabilirsiniz."
+      : params?.error
+        ? "Email veya sifre hatali."
+        : null;
 
   return (
     <main className="login-wrap">
       <section className="card login-card">
         <div className="section-title">
           <div>
-            <h1>WhatsApp Randevu Paneli</h1>
-            <p className="muted">Salon admini veya sistem sahibi olarak giris yapin.</p>
+            <span className="eyebrow">DoluKoltuk</span>
+            <h1>Randevu paneli</h1>
+            <p className="section-note">Salon girisi</p>
           </div>
         </div>
 
-        {params?.error ? <p className="notice error">Email veya sifre hatali.</p> : null}
+        {errorMessage ? <p className="notice error">{errorMessage}</p> : null}
 
         <form className="stack" action="/api/login" method="post">
           <label className="field">

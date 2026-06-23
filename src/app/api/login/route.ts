@@ -8,7 +8,15 @@ export async function POST(request: Request) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email } }).catch((error) => {
+    console.error("Login database error", error);
+    return null;
+  });
+
+  if (!user && !process.env.DATABASE_URL) {
+    redirect("/login?error=db");
+  }
+
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     redirect("/login?error=1");
   }

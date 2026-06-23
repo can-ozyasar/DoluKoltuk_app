@@ -18,7 +18,7 @@ function statusPill(status?: WhatsAppStatus) {
     return <span className="pill ok">Bagli</span>;
   }
   if (status === WhatsAppStatus.QR_READY || status === WhatsAppStatus.AUTHENTICATED) {
-    return <span className="pill warn">QR bekliyor</span>;
+    return <span className="pill warn">QR hazir</span>;
   }
   if (status === WhatsAppStatus.FAILED) {
     return <span className="pill danger">Hata</span>;
@@ -49,6 +49,7 @@ function DashboardShell({
       <div className="shell">
         <header className="topbar">
           <div className="brand">
+            <span className="eyebrow">DoluKoltuk</span>
             <h1>{title}</h1>
             <p>{subtitle}</p>
           </div>
@@ -83,7 +84,7 @@ async function OwnerDashboard({ notice, error }: { notice?: string; error?: stri
   });
 
   return (
-    <DashboardShell title="Sistem sahibi paneli" subtitle="Isletme ac, admin bilgisi ver, WhatsApp QR durumunu takip et.">
+    <DashboardShell title="Sistem sahibi paneli" subtitle="Isletmeleri ve WhatsApp baglanti durumlarini tek ekrandan takip edin.">
       <div className="stack">
         {notice ? <p className="notice">{notice}</p> : null}
         {error ? <p className="notice error">{error}</p> : null}
@@ -92,7 +93,7 @@ async function OwnerDashboard({ notice, error }: { notice?: string; error?: stri
           <div className="section-title">
             <div>
               <h2>Yeni isletme daveti</h2>
-              <p className="muted">Isletme olusunca admin bu email ve sifreyle panelden QR okutabilir.</p>
+              <p className="section-note">Admin bilgileri isletmenin panel girisi icin kullanilir.</p>
             </div>
           </div>
           <form action={createTenantAction} className="stack">
@@ -211,35 +212,43 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
   ).length;
 
   return (
-    <DashboardShell title={tenant.name} subtitle="WhatsApp randevu, personel, hizmet ve musteri yonetimi.">
-      <div className="stack">
+    <DashboardShell title={tenant.name} subtitle="Gunluk randevular, WhatsApp baglantisi ve salon ayarlari.">
+      <div className="dashboard-flow">
         {notice ? <p className="notice">{notice}</p> : null}
         {error ? <p className="notice error">{error}</p> : null}
 
-        <section className="grid three">
-          <div className="card">
+        <nav className="quick-nav" aria-label="Panel bolumleri">
+          <a href="#randevular">Randevular</a>
+          <a href="#whatsapp">WhatsApp</a>
+          <a href="#hizmetler">Hizmetler</a>
+          <a href="#personel">Personel</a>
+          <a href="#musteriler">Musteriler</a>
+        </nav>
+
+        <section className="grid three metric-strip">
+          <div className="card metric-card">
             <span className="label">WhatsApp</span>
-            <h2>{statusPill(tenant.whatsappSession?.status)}</h2>
+            <div>{statusPill(tenant.whatsappSession?.status)}</div>
             <p className="muted">Son guncelleme: {tenant.whatsappSession?.updatedAt ? formatDateTime(tenant.whatsappSession.updatedAt) : "-"}</p>
           </div>
-          <div className="card">
+          <div className="card metric-card">
             <span className="label">Bugunku randevu</span>
-            <h2>{bookedToday}</h2>
+            <strong className="metric-value">{bookedToday}</strong>
             <p className="muted">Aktif personel: {activeStaff.length}</p>
           </div>
-          <div className="card">
+          <div className="card metric-card">
             <span className="label">Aktif hizmet</span>
-            <h2>{activeServices.length}</h2>
+            <strong className="metric-value">{activeServices.length}</strong>
             <p className="muted">Kayitli musteri: {tenant.customers.length}</p>
           </div>
         </section>
 
-        <section className="grid two">
+        <section className="grid two setup-workspace" id="whatsapp">
           <div className="card">
             <div className="section-title">
               <div>
                 <h2>WhatsApp QR</h2>
-                <p className="muted">Worker calisinca QR burada gorunur; telefonla okutunca bot baglanir.</p>
+                <p className="section-note">Baglanti durumu ve QR kodu.</p>
               </div>
               {statusPill(tenant.whatsappSession?.status)}
             </div>
@@ -247,7 +256,7 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
               {tenant.whatsappSession?.qrDataUrl ? (
                 <img src={tenant.whatsappSession.qrDataUrl} alt="WhatsApp QR kodu" />
               ) : (
-                <p className="muted">QR henuz hazir degil. Worker calisirken birkaç saniye icinde olusur.</p>
+                <p className="muted">QR hazir degil.</p>
               )}
               {tenant.whatsappSession?.connectedPhone ? <span className="pill ok">{tenant.whatsappSession.connectedPhone}</span> : null}
               {tenant.whatsappSession?.lastError ? <p className="notice error">{tenant.whatsappSession.lastError}</p> : null}
@@ -290,7 +299,7 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
           </div>
         </section>
 
-        <section className="grid two">
+        <section className="grid two catalog-workspace" id="hizmetler">
           <div className="card">
             <div className="section-title">
               <h2>Hizmetler</h2>
@@ -349,7 +358,7 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
             </div>
           </div>
 
-          <div className="card">
+          <div className="card" id="personel">
             <div className="section-title">
               <h2>Personel</h2>
             </div>
@@ -391,7 +400,7 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
           </div>
         </section>
 
-        <section className="card">
+        <section className="card hours-workspace">
           <div className="section-title">
             <h2>Personel calisma saatleri</h2>
           </div>
@@ -426,16 +435,19 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
           </div>
         </section>
 
-        <section className="grid two">
+        <section className="grid two primary-workspace" id="randevular">
           <div className="card">
             <div className="section-title">
-              <h2>Manuel randevu ekle</h2>
+              <div>
+                <h2>Randevu ekle</h2>
+                <p className="section-note">Telefonla gelen talepler icin.</p>
+              </div>
             </div>
             <form action={createManualAppointmentAction} className="stack">
               <div className="form-grid">
                 <label className="field">
                   <span>Musteri telefon</span>
-                  <input name="phone" placeholder="905551112233@c.us veya +90..." required />
+                  <input name="phone" inputMode="tel" placeholder="905551112233@c.us veya +90..." required />
                 </label>
                 <label className="field">
                   <span>Musteri adi</span>
@@ -478,8 +490,8 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
             <div className="section-title">
               <h2>Yaklasan randevular</h2>
             </div>
-            <div className="stack">
-              {tenant.appointments.length === 0 ? <p className="muted">Henuz randevu yok.</p> : null}
+            <div className="stack appointment-list">
+              {tenant.appointments.length === 0 ? <div className="empty-state">Henuz randevu yok.</div> : null}
               {tenant.appointments.map((appointment) => (
                 <div className="item" key={appointment.id}>
                   <div className="section-title">
@@ -505,7 +517,7 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
           </div>
         </section>
 
-        <section className="card">
+        <section className="card customers-workspace" id="musteriler">
           <div className="section-title">
             <h2>Musteri gecmisi ve notlar</h2>
           </div>

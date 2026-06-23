@@ -162,10 +162,7 @@ async function startClient(tenant: TenantRef) {
       dataPath: sessionDir
     }),
     puppeteer: puppeteerOptions(),
-    webVersionCache: {
-      type: "remote",
-      remotePath: "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html"
-    }
+    webVersionCache: { type: "none" }
   }) as WhatsAppClient;
 
   const managed: ManagedClient = {
@@ -331,6 +328,10 @@ async function checkPairingCodes() {
     const managed = clients.get(session.tenantId);
     if (managed && managed.client && session.pairingCodePhone) {
       try {
+        if (!managed.client.pupPage) {
+           console.log(`[${managed.slug}] PupPage is null, waiting for client to be ready...`);
+           continue;
+        }
         console.log(`[${managed.slug}] Pairing code istenir: ${session.pairingCodePhone}`);
         // whatsapp-web.js requires phone number without '+'
         const cleanPhone = session.pairingCodePhone.replace(/\D/g, "");

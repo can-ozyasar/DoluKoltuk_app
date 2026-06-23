@@ -294,7 +294,12 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
                   </form>
 
                   {tenant.whatsappSession?.pairingCodePhone && !tenant.whatsappSession?.pairingCode && (
-                    <div className="status-pill warn" style={{width: '100%', justifyContent: 'center', padding: '12px'}}>Kod bekleniyor... (Yenileyin)</div>
+                    <>
+                      <meta httpEquiv="refresh" content="3" />
+                      <div className="status-pill warn" style={{width: '100%', justifyContent: 'center', padding: '12px'}}>
+                        Kod oluşturuluyor... Lütfen bekleyin (Sayfa otomatik yenilenecek)
+                      </div>
+                    </>
                   )}
 
                   {tenant.whatsappSession?.pairingCode && (

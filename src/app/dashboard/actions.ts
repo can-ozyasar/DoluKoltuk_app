@@ -182,7 +182,8 @@ export async function updateWorkingHoursAction(formData: FormData) {
 export async function createManualAppointmentAction(formData: FormData) {
   const user = await requireUser([UserRole.TENANT_ADMIN]);
   const tenantId = requireTenantId(user);
-  const phone = field(formData, "phone");
+  let phone = field(formData, "phone").replace(/\D/g, "");
+  if (phone.length === 10) phone = "90" + phone;
   const startRaw = field(formData, "startAt");
 
   if (!phone || !startRaw) {
@@ -259,7 +260,8 @@ export async function createCustomerNoteAction(formData: FormData) {
 export async function requestPairingCodeAction(formData: FormData) {
   const user = await requireUser([UserRole.TENANT_ADMIN]);
   const tenantId = requireTenantId(user);
-  const phone = field(formData, "pairingPhone");
+  let phone = field(formData, "pairingPhone").replace(/\D/g, "");
+  if (phone.length === 10) phone = "90" + phone;
 
   if (!phone) {
     redirect("/dashboard?error=Telefon+numarasi+gerekli");

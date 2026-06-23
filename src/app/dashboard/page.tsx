@@ -23,8 +23,7 @@ import {
   MessageCircle,
   Mic,
   ChevronLeft,
-  Search,
-  Menu,
+  LogOut,
   Trash2,
   Plus
 } from "lucide-react";
@@ -101,8 +100,11 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
             <ChevronLeft size={24}/> {tenant.name}
           </div>
           <div className="header-actions">
-            <Search size={22}/>
-            <Menu size={22}/>
+            <form action="/api/logout" method="POST" style={{margin: 0, padding: 0, display: 'flex'}}>
+              <button type="submit" style={{background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center'}}>
+                <LogOut size={22} style={{color: 'var(--primary)'}}/>
+              </button>
+            </form>
           </div>
         </div>
       </div>
@@ -192,7 +194,13 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
             <div className="card mt-4" id="new-app-form">
               <h2 className="card-title">Yeni Randevu</h2>
               <form action={createManualAppointmentAction} className="stack">
-                <div className="form-group"><label>Müşteri Telefon</label><input className="input-field" name="phone" type="tel" required /></div>
+                <div className="form-group">
+                  <label>Müşteri Telefon</label>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface-soft)', padding: '0 12px', borderRadius: '12px', border: '1px solid var(--line)'}}>
+                    <span style={{fontWeight: 600, color: 'var(--text-muted)'}}>+90</span>
+                    <input className="input-field" name="phone" type="tel" placeholder="5XX XXX XX XX" pattern="[0-9]{10}" maxLength={10} required style={{border: 'none', background: 'transparent', paddingLeft: 0, flex: 1, boxShadow: 'none'}} />
+                  </div>
+                </div>
                 <div className="form-group"><label>Müşteri Adı</label><input className="input-field" name="customerName" /></div>
                 <div className="form-group">
                   <label>Hizmet</label>
@@ -277,7 +285,10 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
                   <form action={requestPairingCodeAction} className="stack">
                     <div className="form-group">
                       <label>Telefon Numaranız</label>
-                      <input className="input-field" name="pairingPhone" type="tel" placeholder="90555..." required />
+                      <div style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface-soft)', padding: '0 12px', borderRadius: '12px', border: '1px solid var(--line)'}}>
+                        <span style={{fontWeight: 600, color: 'var(--text-muted)'}}>+90</span>
+                        <input className="input-field" name="pairingPhone" type="tel" placeholder="5XX XXX XX XX" pattern="[0-9]{10}" maxLength={10} required style={{border: 'none', background: 'transparent', paddingLeft: 0, flex: 1, boxShadow: 'none'}} />
+                      </div>
                     </div>
                     <button className="btn" type="submit">Kod İste</button>
                   </form>
@@ -289,7 +300,14 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
                   {tenant.whatsappSession?.pairingCode && (
                     <div style={{background: 'var(--bg-color)', padding: '16px', borderRadius: '12px', textAlign: 'center'}}>
                       <p style={{fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px'}}>Bildirime tıklayıp kodu girin:</p>
-                      <div style={{fontSize: '32px', fontWeight: 800, letterSpacing: '4px', color: 'var(--primary)'}}>{tenant.whatsappSession.pairingCode}</div>
+                      <div 
+                        data-action="copy"
+                        style={{fontSize: '32px', fontWeight: 800, letterSpacing: '4px', color: 'var(--primary)', cursor: 'pointer', display: 'inline-block'}}
+                        title="Kopyalamak için tıklayın"
+                      >
+                        {tenant.whatsappSession.pairingCode}
+                      </div>
+                      <p style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px', opacity: 0.7}}>Kopyalamak için koda dokunun</p>
                     </div>
                   )}
                   {tenant.whatsappSession?.lastError && <p className="status-pill danger" style={{width: '100%', justifyContent: 'center'}}>{tenant.whatsappSession.lastError}</p>}
@@ -380,6 +398,17 @@ async function TenantDashboard({ tenantId, notice, error }: { tenantId: string; 
              recognition.onerror = function() { btn.style.color = "var(--text-muted)"; };
           }
         }
+        
+        // Copy to clipboard logic
+        document.querySelectorAll('[data-action="copy"]').forEach(el => {
+          el.addEventListener('click', function() {
+             const text = this.innerText;
+             if (text === "Kopyalandı!") return;
+             navigator.clipboard.writeText(text);
+             this.innerText = "Kopyalandı!";
+             setTimeout(() => { this.innerText = text; }, 2000);
+          });
+        });
       ` }} />
     </>
   );
